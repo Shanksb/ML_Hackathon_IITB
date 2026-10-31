@@ -38,10 +38,8 @@ def _load_model():
     """Load weights once and reuse them."""
     global _model
     if _model is None:
-        import os
         from omegaconf import OmegaConf
         from huggingface_hub import hf_hub_download
-        from tsr.utils import get_class  # TripoSR helper used by from_pretrained
 
         cfg_path = hf_hub_download("stabilityai/TripoSR", "config.yaml")
         ckpt_path = hf_hub_download("stabilityai/TripoSR", "model.ckpt")
