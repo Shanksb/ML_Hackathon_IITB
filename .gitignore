@@ -1,0 +1,7 @@
+@"
+.venv/
+outputs/
+weights/
+__pycache__/
+*.pyc
+"@ | Add-Content .gitignore

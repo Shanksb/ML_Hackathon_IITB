@@ -38,7 +38,7 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
 
     if args.sweep:
-        scales = [0.6, 0.8, 1.0, 1.2]
+        scales = [0.5, 0.6, 0.7, 0.8]
         images = []
         for s in scales:
             t0 = time.time()
