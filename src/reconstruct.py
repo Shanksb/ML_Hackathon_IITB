@@ -38,11 +38,19 @@ def _load_model():
     """Load weights once and reuse them."""
     global _model
     if _model is None:
-        m = TSR.from_pretrained(
-            "stabilityai/TripoSR",
-            config_name="config.yaml",
-            weight_name="model.ckpt",
-        )
+        import os
+        from omegaconf import OmegaConf
+        from huggingface_hub import hf_hub_download
+        from tsr.utils import get_class  # TripoSR helper used by from_pretrained
+
+        cfg_path = hf_hub_download("stabilityai/TripoSR", "config.yaml")
+        ckpt_path = hf_hub_download("stabilityai/TripoSR", "model.ckpt")
+        cfg = OmegaConf.load(cfg_path)
+        OmegaConf.resolve(cfg)
+        m = TSR(cfg)
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+        ckpt = {_convert_key(k): v for k, v in ckpt.items()}
+        m.load_state_dict(ckpt)
         m.renderer.set_chunk_size(8192)
         m.to(DEVICE)
         _model = m
