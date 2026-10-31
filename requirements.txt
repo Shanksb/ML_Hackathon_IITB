@@ -1,3 +1,4 @@
+torch           
 omegaconf
 einops
 trimesh
@@ -7,3 +8,9 @@ imageio[ffmpeg]
 scikit-image
 huggingface-hub
 transformers==5.22.1
+diffusers
+accelerate
+rembg
+onnxruntime
+opencv-python
+gradio
