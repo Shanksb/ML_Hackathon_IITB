@@ -47,7 +47,7 @@ with gr.Blocks(title="Sketch2Shape AI") as demo:
         with gr.Column():
             with gr.Tab("Draw"):
                 canvas = gr.ImageEditor(label="Sketch canvas", type="numpy",
-                                        canvas_size=(512, 512), brush=gr.Brush(color=["000000"], default_color=["000000"], default_size=6))
+                                        canvas_size=(512, 512), brush=gr.Brush(colors=["000000"], default_color=["000000"], default_size=6))
             with gr.Tab("Upload"):
                 upload = gr.Image(label="Upload a sketch", type="pil")
             prompt = gr.Textbox(label="Optional prompt",
