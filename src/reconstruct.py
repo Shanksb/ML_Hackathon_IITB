@@ -4,8 +4,9 @@ import numpy as np
 import torch
 import trimesh
 from PIL import Image
-
-sys.path.append("third_party/TripoSR")
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[1] / "third_party" / "TripoSR"))
 from tsr.system import TSR
 from tsr.utils import resize_foreground
 
