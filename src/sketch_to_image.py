@@ -43,11 +43,13 @@ CLIP_ID = "openai/clip-vit-base-patch32"
 
 STYLE_SUFFIX = (
     "single isolated object, front three-quarter view, centered, "
-    "product photo, pure white background, soft studio lighting, high detail"
+    "matte finish, flat even diffuse lighting, soft uniform colors, "
+    "no reflections, no highlights, no shadows, pure white background, high detail"
 )
 NEGATIVE_PROMPT = (
     "multiple objects, extra objects, saucer, plate, coaster, table, floor, "
-    "shadow on ground, gray background, colored background, text, watermark, logo, "
+    "shadow, harsh shadows, glossy, shiny, reflective, specular highlights, "
+    "dark, gray background, colored background, text, watermark, logo, "
     "blurry, low quality, cropped, out of frame, cluttered background, people, hands"
 )
 FALLBACK_SUBJECT = "a simple object"
