@@ -1,0 +1,9 @@
+omegaconf
+einops
+trimesh
+xatlas
+moderngl
+imageio[ffmpeg]
+scikit-image
+huggingface-hub
+transformers==5.22.1

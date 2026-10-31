@@ -5,3 +5,31 @@ weights/
 __pycache__/
 *.pyc
 "@ | Add-Content .gitignore
+
+
+
+# Python environment and cache
+venv/
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+
