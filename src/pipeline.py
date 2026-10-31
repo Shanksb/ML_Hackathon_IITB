@@ -11,8 +11,8 @@ from src.export import MeshValidationError, mesh_report, validate_and_export
 from src.preprocess import (EmptySketchError, SegmentationError,
                             prepare_for_3d, prepare_sketch)
 from src.reconstruct import ReconstructionError, reconstruct
-from src.sketch_to_image import generate_image, infer_label
-
+from src.sketch_to_image import generate_best_image, infer_label
+    
 EXPECTED_ERRORS = (EmptySketchError, SegmentationError,
                    ReconstructionError, MeshValidationError)
 
@@ -55,8 +55,7 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
             label = f"{label} ({conf:.0%})"
         except Exception:
             label = "unknown"
-        generated = generate_image(clean, (prompt or "").strip() or None, seed=seed)
-        t["generate_image"] = time.time() - t0
+        generated, gen_info = generate_best_image(clean, prompt, seed=seed, n_candidates= config.N_CANDIDATES)
 
         step(0.65, "Removing the background...")
         t0 = time.time()
