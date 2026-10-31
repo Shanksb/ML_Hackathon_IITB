@@ -4,9 +4,8 @@ import numpy as np
 import torch
 import trimesh
 from PIL import Image
-import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).resolve().parents[1] / "third_party" / "TripoSR"))
+
+sys.path.append("third_party/TripoSR")
 from tsr.system import TSR
 from tsr.utils import resize_foreground
 
@@ -19,6 +18,20 @@ RESOLUTION_LADDER = [256, 192, 128]
 
 class ReconstructionError(Exception):
     """Raised when 3D reconstruction fails. The message is safe to show to users."""
+
+import re
+
+def _convert_key(k: str) -> str:
+    """Old HF ViT key names -> new (transformers 5.x) names."""
+    k = k.replace(".encoder.layer.", ".layers.")
+    k = k.replace(".attention.attention.query.", ".attention.q_proj.")
+    k = k.replace(".attention.attention.key.", ".attention.k_proj.")
+    k = k.replace(".attention.attention.value.", ".attention.v_proj.")
+    k = k.replace(".attention.output.dense.", ".attention.o_proj.")
+    k = k.replace(".intermediate.dense.", ".mlp.fc1.")
+    # the MLP output projection: "layers.N.output.dense" -> "layers.N.mlp.fc2"
+    k = re.sub(r"\.layers\.(\d+)\.output\.dense\.", r".layers.\1.mlp.fc2.", k)
+    return k
 
 
 def _load_model():
