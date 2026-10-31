@@ -371,8 +371,8 @@ def _clip_label_probs(images, label):
     texts = [f"a product photo of a {l}" for l in LABELS]
     inputs = proc(text=texts, images=images, return_tensors="pt", padding=True)
     with torch.inference_mode():
-        logits = model(**inputs).logits_per_image          # [n_images, n_labels]
-    return logits.softmax(dim=-1)[:, LABELS.index(label)].tolist()
+        sims = logits[:, LABELS.index(label)]/100.0
+    return sims.tolist()
 
 
 def _fidelity(candidate: Image.Image, cond: Image.Image) -> float:
