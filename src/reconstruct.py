@@ -82,8 +82,9 @@ def _check_input(img: Image.Image) -> None:
         )
 
 
-def _run_once(img: Image.Image, resolution: int, foreground_ratio: float) -> trimesh.Trimesh:
-    """One reconstruction attempt at a given resolution. May raise OOM or ValueError."""
+def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
+              bake: bool = True, texture_resolution: int = 1024) -> trimesh.Trimesh:
+    """One reconstruction attempt. Tries a baked texture, falls back to vertex colours."""
     model = _load_model()
 
     img = resize_foreground(img, foreground_ratio)
@@ -93,8 +94,31 @@ def _run_once(img: Image.Image, resolution: int, foreground_ratio: float) -> tri
 
     with torch.no_grad():
         codes = model([image], device=DEVICE)
-        meshes = model.extract_mesh(codes, True, resolution=resolution)
-    return meshes[0]
+
+        if bake:
+            try:
+                from tsr.bake_texture import bake_texture
+                raw = model.extract_mesh(codes, False, resolution=resolution)[0]
+                out = bake_texture(raw, model, codes[0], texture_resolution)
+                tex = (np.clip(out["colors"], 0, 1) * 255.0).astype(np.uint8)
+                tex_img = Image.fromarray(tex).convert("RGB").transpose(Image.FLIP_TOP_BOTTOM)
+                mesh = trimesh.Trimesh(
+                    vertices=raw.vertices[out["vmapping"]],
+                    faces=out["indices"],
+                    vertex_normals=raw.vertex_normals[out["vmapping"]],
+                    visual=trimesh.visual.TextureVisuals(uv=out["uvs"], image=tex_img),
+                    process=False,
+                )
+                mesh.metadata["textured"] = True
+                return mesh
+            except Exception as e:
+                print(f"[reconstruct] texture baking failed ({type(e).__name__}: {e}); "
+                      "using vertex colours")
+                torch.cuda.empty_cache()
+
+        mesh = model.extract_mesh(codes, True, resolution=resolution)[0]
+        mesh.metadata["textured"] = False
+        return mesh
 
 
 def reconstruct(img: Image.Image, mc_resolution: int = 256,
