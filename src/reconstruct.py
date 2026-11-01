@@ -83,7 +83,7 @@ def _check_input(img: Image.Image) -> None:
 
 
 def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
-              bake: bool = False, texture_resolution: int = 1024, threshold: float = 25.0) -> trimesh.Trimesh:
+              bake: bool = False, texture_resolution: int = 1024, threshold: float = 25.0, smooth_iters: int = -1) -> trimesh.Trimesh:
     """One reconstruction attempt. Tries a baked texture, falls back to vertex colours."""
     model = _load_model()
 
@@ -117,6 +117,8 @@ def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
                 torch.cuda.empty_cache()
 
         mesh = model.extract_mesh(codes, True, resolution=resolution, threshold=threshold)[0]
+        if smooth_iters > 0:
+            mesh = mesh.smooth_iter(smooth_iters)
         mesh.metadata["textured"] = False
         return mesh
 
@@ -139,7 +141,7 @@ def _recolor_from_image(mesh, rgba: Image.Image, blend: float = 0.85):
 
 
 def reconstruct(img: Image.Image, mc_resolution: int = 256,
-                foreground_ratio: float = 0.85, threshold: float = 25.0) -> trimesh.Trimesh:
+                foreground_ratio: float = 0.85, threshold: float = 25.0, bake: bool = False, smooth_iters: int = -1) -> trimesh.Trimesh:
     """RGBA image (background removed) -> coloured, upright trimesh.
 
     On GPU out-of-memory, retries at lower resolutions.
