@@ -207,7 +207,7 @@ sketch2shape/
 
 | Input sketch | Generated image | 3D model |
 |---|---|---|
-| ![Input sketch](docs/results/input_sketch.png) | ![Generated image](docs/results/generated_image.png) | ![3D model](docs/results/final_3d_model.png) |
+| ![Input sketch](docs\result\input_sketch..png) | ![Generated image](docs\result\generated_image.png) | ![3D model](docs\result\final_3d_model.png) |
 
 > Replace these with real screenshots. Add timings and VRAM figures only after testing (see `docs/benchmarks.md`).
 
