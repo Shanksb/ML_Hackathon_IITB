@@ -61,6 +61,7 @@ def _orient(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0]))
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
+    trimesh.smoothing.filter_laplacian(mesh, iterations=3)
     return mesh
 
 
@@ -83,7 +84,7 @@ def _check_input(img: Image.Image) -> None:
 
 
 def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
-              bake: bool = True, texture_resolution: int = 1024) -> trimesh.Trimesh:
+              bake: bool = False, texture_resolution: int = 1024) -> trimesh.Trimesh:
     """One reconstruction attempt. Tries a baked texture, falls back to vertex colours."""
     model = _load_model()
 
