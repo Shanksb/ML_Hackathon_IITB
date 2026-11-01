@@ -121,6 +121,23 @@ def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
         mesh.metadata["textured"] = False
         return mesh
 
+def _recolor_from_image(mesh, rgba: Image.Image, blend: float = 0.85):
+    """Pull vertex colours from the reference image for camera-facing vertices."""
+    img = resize_foreground(rgba, 0.85)
+    arr = np.array(img).astype(np.float32) / 255.0
+    h, w = arr.shape[:2]
+    v = np.asarray(mesh.vertices)
+    # TripoSR frame: camera looks along -z/+z, image x = v[:,0], image y = -v[:,2]... see note
+    u = (v[:, 0] / (np.abs(v[:, 0]).max() + 1e-8) * 0.5 + 0.5) * (w - 1)
+    t = (0.5 - v[:, 1] / (np.abs(v[:, 1]).max() + 1e-8) * 0.5) * (h - 1)
+    px = arr[np.clip(t.astype(int), 0, h - 1), np.clip(u.astype(int), 0, w - 1)]
+    facing = np.asarray(mesh.vertex_normals)[:, 2] > 0.2
+    ok = facing & (px[:, 3] > 0.5)
+    cols = mesh.visual.vertex_colors.copy().astype(np.float32)
+    cols[ok, :3] = (1 - blend) * cols[ok, :3] + blend * px[ok, :3] * 255.0
+    mesh.visual.vertex_colors = cols.astype(np.uint8)
+    return mesh
+
 
 def reconstruct(img: Image.Image, mc_resolution: int = 256,
                 foreground_ratio: float = 0.85) -> trimesh.Trimesh:
