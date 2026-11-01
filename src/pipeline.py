@@ -17,6 +17,7 @@ from src.preprocess import (EmptySketchError, SegmentationError,
                             prepare_for_3d, prepare_sketch)
 from src.reconstruct import ReconstructionError, reconstruct
 from src.sketch_to_image import generate_best_image, generate_image, infer_label
+from src.postprocess import carve_cavity, is_container
 
 EXPECTED_ERRORS = (EmptySketchError, SegmentationError,
                    ReconstructionError, MeshValidationError)
@@ -113,9 +114,11 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
 
         step(0.75, "Building the 3D model...")
         t0 = time.time()
-        mesh = reconstruct(rgba, mc_resolution=mc_resolution)
+        container = is_container(label, prompt)
+        mesh = reconstruct(rgba, mc_resolution=mc_resolution, threshold=config.MC_THRESHOLD, bake=config.BAKE_TEXTURE and not container, smooth_iters=config.SMOOTH_ITERS)
+        if container:
+            mesh = carve_cavity(mesh)
         t["reconstruct"] = time.time() - t0
-
         step(0.95, "Validating and exporting...")
         t0 = time.time()
         glb = validate_and_export(mesh, str(out_dir / f"{name}.glb"))

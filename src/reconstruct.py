@@ -56,15 +56,13 @@ def _load_model():
     return _model
 
 
-def _orient(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
-    """Rotate TripoSR's native frame so the object stands upright (Y-up).
-    The third rotation was found by experiment (x+90 made the chair upright)."""
+def _orient(mesh, smooth_iters=1):
     mesh.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [0, 1, 0]))
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
-    trimesh.smoothing.filter_laplacian(mesh, iterations=3)
+    if smooth_iters > 0 and not mesh.metadata.get("textured"):
+        trimesh.smoothing.filter_laplacian(mesh, iterations=smooth_iters)
     return mesh
-
 
 def _check_input(img: Image.Image) -> None:
     """Reject inputs that cannot produce a sensible mesh."""
@@ -85,7 +83,7 @@ def _check_input(img: Image.Image) -> None:
 
 
 def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
-              bake: bool = False, texture_resolution: int = 1024) -> trimesh.Trimesh:
+              bake: bool = False, texture_resolution: int = 1024, threshold: float = 25.0) -> trimesh.Trimesh:
     """One reconstruction attempt. Tries a baked texture, falls back to vertex colours."""
     model = _load_model()
 
@@ -100,7 +98,7 @@ def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
         if bake:
             try:
                 from tsr.bake_texture import bake_texture
-                raw = model.extract_mesh(codes, False, resolution=resolution)[0]
+                raw = model.extract_mesh(codes, False, resolution=resolution, threshold=threshold)[0]
                 out = bake_texture(raw, model, codes[0], texture_resolution)
                 tex = (np.clip(out["colors"], 0, 1) * 255.0).astype(np.uint8)
                 tex_img = Image.fromarray(tex).convert("RGB").transpose(Image.FLIP_TOP_BOTTOM)
@@ -118,7 +116,7 @@ def _run_once(img: Image.Image, resolution: int, foreground_ratio: float,
                       "using vertex colours")
                 torch.cuda.empty_cache()
 
-        mesh = model.extract_mesh(codes, True, resolution=resolution)[0]
+        mesh = model.extract_mesh(codes, True, resolution=resolution, threshold=threshold)[0]
         mesh.metadata["textured"] = False
         return mesh
 
@@ -141,7 +139,7 @@ def _recolor_from_image(mesh, rgba: Image.Image, blend: float = 0.85):
 
 
 def reconstruct(img: Image.Image, mc_resolution: int = 256,
-                foreground_ratio: float = 0.85) -> trimesh.Trimesh:
+                foreground_ratio: float = 0.85, threshold: float = 25.0) -> trimesh.Trimesh:
     """RGBA image (background removed) -> coloured, upright trimesh.
 
     On GPU out-of-memory, retries at lower resolutions.
@@ -159,7 +157,7 @@ def reconstruct(img: Image.Image, mc_resolution: int = 256,
     for res in ladder:
         t0 = time.time()
         try:
-            mesh = _run_once(img, res, foreground_ratio)
+            mesh = _run_once(img, res, foreground_ratio, threshold=threshold, bake=bake)
         except torch.cuda.OutOfMemoryError as e:
             last_error = e
             print(f"[reconstruct] out of GPU memory at resolution {res}, retrying lower...")
@@ -180,7 +178,7 @@ def reconstruct(img: Image.Image, mc_resolution: int = 256,
         if mesh is None or len(mesh.vertices) == 0 or len(mesh.faces) == 0:
             raise ReconstructionError("Reconstruction produced an empty mesh.")
 
-        mesh = _orient(mesh)
+        mesh = _orient(mesh, smooth_iters)
         mesh.metadata["resolution_used"] = res
         mesh.metadata["seconds"] = round(time.time() - t0, 2)
         return mesh
