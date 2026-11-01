@@ -44,6 +44,23 @@ def looks_like_photo(img: Image.Image) -> bool:
     mid = ((g > 60) & (g < 195)).mean()      # share of mid-gray pixels
     return bool(mid > 0.25)
 
+def _recolor_from_image(mesh, rgba: Image.Image, blend: float = 0.85):
+    """Pull vertex colours from the reference image for camera-facing vertices."""
+    img = resize_foreground(rgba, 0.85)
+    arr = np.array(img).astype(np.float32) / 255.0
+    h, w = arr.shape[:2]
+    v = np.asarray(mesh.vertices)
+    # TripoSR frame: camera looks along -z/+z, image x = v[:,0], image y = -v[:,2]... see note
+    u = (v[:, 0] / (np.abs(v[:, 0]).max() + 1e-8) * 0.5 + 0.5) * (w - 1)
+    t = (0.5 - v[:, 1] / (np.abs(v[:, 1]).max() + 1e-8) * 0.5) * (h - 1)
+    px = arr[np.clip(t.astype(int), 0, h - 1), np.clip(u.astype(int), 0, w - 1)]
+    facing = np.asarray(mesh.vertex_normals)[:, 2] > 0.2
+    ok = facing & (px[:, 3] > 0.5)
+    cols = mesh.visual.vertex_colors.copy().astype(np.float32)
+    cols[ok, :3] = (1 - blend) * cols[ok, :3] + blend * px[ok, :3] * 255.0
+    mesh.visual.vertex_colors = cols.astype(np.uint8)
+    return mesh
+
 
 def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None) -> dict:
     """sketch: PIL image. Returns glb_path, generated_image, label, timings,
@@ -61,13 +78,19 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
 
     try:
         if looks_like_photo(sketch):
-            # Photo: skip sketch cleaning and ControlNet, cut it out and go to 3D
-            step(0.15, "Photo detected, skipping generation...")
-            label = "photo (generation skipped)"
-            # keep RGBA so an existing cut-out is preserved; otherwise use RGB
-            generated = sketch if sketch.mode == "RGBA" else sketch.convert("RGB")
-            t["prepare_sketch"] = 0.0
-            t["generate_image"] = 0.0
+            if prompt:
+                step(0.15, "Photo + prompt: restyling with the prompt...")
+                label = "photo + prompt"
+                t0 = time.time()
+                generated = generate_image(photo_to_edges(sketch), prompt, seed=seed,
+                                   conditioning_scale=0.9, auto_label=False)
+                t["prepare_sketch"] = 0.0
+                t["generate_image"] = time.time() - t0
+            else:
+                label = "photo (generation skipped)"
+                generated = sketch if sketch.mode == "RGBA" else sketch.convert("RGB")
+                t["prepare_sketch"] = 0.0
+                t["generate_image"] = 0.0
         else:
             step(0.05, "Cleaning the sketch...")
             t0 = time.time()
