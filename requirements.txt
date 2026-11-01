@@ -14,3 +14,7 @@ onnxruntime
 opencv-python
 gradio
 pillow<13
+manifold3d
+shapely
+mapbox-earcut
+scipy
