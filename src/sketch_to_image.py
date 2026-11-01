@@ -42,8 +42,8 @@ CONTROLNET_ID = "lllyasviel/control_v11p_sd15_scribble"
 CLIP_ID = "openai/clip-vit-base-patch32"
 
 STYLE_SUFFIX = (
-    "single isolated object, front three-quarter view, centered, "
-    "matte finish, flat even diffuse lighting, soft uniform colors, "
+    "single isolated object, view from slightly above showing the open top and inside, "
+    "centered, matte finish, flat even diffuse lighting, soft uniform colors, "
     "no reflections, no highlights, no shadows, pure white background, high detail"
 )
 NEGATIVE_PROMPT = (

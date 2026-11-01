@@ -1,4 +1,3 @@
-torch           
 omegaconf
 einops
 trimesh
@@ -14,3 +13,4 @@ rembg
 onnxruntime
 opencv-python
 gradio
+pillow<13

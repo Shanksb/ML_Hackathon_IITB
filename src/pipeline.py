@@ -36,21 +36,18 @@ def warmup() -> None:
 
 
 def _on_white(img: Image.Image) -> Image.Image:
-    """Composite any image onto white and return RGB."""
     rgba = img.convert("RGBA")
     white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
     return Image.alpha_composite(white, rgba).convert("RGB")
 
 
 def looks_like_photo(img: Image.Image) -> bool:
-    """Line art is nearly two-tone; photos have many colours and mid-tones."""
     g = np.array(_on_white(img).convert("L").resize((128, 128)))
     mid = ((g > 60) & (g < 195)).mean()
     return bool(mid > 0.25)
 
 
 def photo_to_edges(img: Image.Image) -> Image.Image:
-    """Photo -> white edges on black (ControlNet scribble format)."""
     g = cv2.GaussianBlur(np.array(_on_white(img).convert("L")), (5, 5), 0)
     edges = cv2.Canny(g, 50, 140)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
@@ -58,15 +55,12 @@ def photo_to_edges(img: Image.Image) -> Image.Image:
 
 
 def boost_colour(img: Image.Image, factor: float = 1.4) -> Image.Image:
-    """Counteract TripoSR's washed-out colours. Skips transparent cut-outs."""
     if img.mode == "RGBA":
         return img
     return ImageEnhance.Color(img.convert("RGB")).enhance(factor)
 
 
 def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None) -> dict:
-    """sketch: PIL image. Returns glb_path, generated_image, label, timings,
-    report and generation (candidate scores, empty for photos)."""
     def step(frac, msg):
         if progress is not None:
             progress(frac, desc=msg)
