@@ -111,6 +111,7 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
 
         step(0.65, "Removing the background...")
         t0 = time.time()
+        generated = ImageEnhance.Color(generated.convert("RGB")).enhance(1.4)  # boost saturation for TripoSR
         rgba = prepare_for_3d(generated)
         t["prepare_for_3d"] = time.time() - t0
 

@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import trimesh
 from PIL import Image
+from PIL import ImageEnhance
 
 sys.path.append("third_party/TripoSR")
 from tsr.system import TSR
