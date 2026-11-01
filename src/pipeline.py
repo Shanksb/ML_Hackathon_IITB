@@ -1,21 +1,22 @@
 """Pipeline: sketch -> prepare_sketch -> generate_best_image -> prepare_for_3d
 -> reconstruct -> validate_and_export. Models stay cached between calls.
-Photos (many colours) skip ControlNet and go straight to 3D."""
+Photos: no prompt -> straight to 3D; with a prompt -> restyled via ControlNet edges."""
 from __future__ import annotations
 
 import time
 import uuid
 from pathlib import Path
 
+import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 import config
 from src.export import MeshValidationError, mesh_report, validate_and_export
 from src.preprocess import (EmptySketchError, SegmentationError,
                             prepare_for_3d, prepare_sketch)
 from src.reconstruct import ReconstructionError, reconstruct
-from src.sketch_to_image import generate_best_image, infer_label
+from src.sketch_to_image import generate_best_image, generate_image, infer_label
 
 EXPECTED_ERRORS = (EmptySketchError, SegmentationError,
                    ReconstructionError, MeshValidationError)
@@ -34,32 +35,33 @@ def warmup() -> None:
     R._load_model()
 
 
+def _on_white(img: Image.Image) -> Image.Image:
+    """Composite any image onto white and return RGB."""
+    rgba = img.convert("RGBA")
+    white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    return Image.alpha_composite(white, rgba).convert("RGB")
+
+
 def looks_like_photo(img: Image.Image) -> bool:
     """Line art is nearly two-tone; photos have many colours and mid-tones."""
-    if img.mode in ("RGBA", "LA", "P"):
-        rgba = img.convert("RGBA")
-        white = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
-        img = Image.alpha_composite(white, rgba)
-    g = np.array(img.convert("L").resize((128, 128)))
-    mid = ((g > 60) & (g < 195)).mean()      # share of mid-gray pixels
+    g = np.array(_on_white(img).convert("L").resize((128, 128)))
+    mid = ((g > 60) & (g < 195)).mean()
     return bool(mid > 0.25)
 
-def _recolor_from_image(mesh, rgba: Image.Image, blend: float = 0.85):
-    """Pull vertex colours from the reference image for camera-facing vertices."""
-    img = resize_foreground(rgba, 0.85)
-    arr = np.array(img).astype(np.float32) / 255.0
-    h, w = arr.shape[:2]
-    v = np.asarray(mesh.vertices)
-    # TripoSR frame: camera looks along -z/+z, image x = v[:,0], image y = -v[:,2]... see note
-    u = (v[:, 0] / (np.abs(v[:, 0]).max() + 1e-8) * 0.5 + 0.5) * (w - 1)
-    t = (0.5 - v[:, 1] / (np.abs(v[:, 1]).max() + 1e-8) * 0.5) * (h - 1)
-    px = arr[np.clip(t.astype(int), 0, h - 1), np.clip(u.astype(int), 0, w - 1)]
-    facing = np.asarray(mesh.vertex_normals)[:, 2] > 0.2
-    ok = facing & (px[:, 3] > 0.5)
-    cols = mesh.visual.vertex_colors.copy().astype(np.float32)
-    cols[ok, :3] = (1 - blend) * cols[ok, :3] + blend * px[ok, :3] * 255.0
-    mesh.visual.vertex_colors = cols.astype(np.uint8)
-    return mesh
+
+def photo_to_edges(img: Image.Image) -> Image.Image:
+    """Photo -> white edges on black (ControlNet scribble format)."""
+    g = cv2.GaussianBlur(np.array(_on_white(img).convert("L")), (5, 5), 0)
+    edges = cv2.Canny(g, 50, 140)
+    edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+    return Image.fromarray(edges).convert("RGB")
+
+
+def boost_colour(img: Image.Image, factor: float = 1.4) -> Image.Image:
+    """Counteract TripoSR's washed-out colours. Skips transparent cut-outs."""
+    if img.mode == "RGBA":
+        return img
+    return ImageEnhance.Color(img.convert("RGB")).enhance(factor)
 
 
 def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None) -> dict:
@@ -79,14 +81,15 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
     try:
         if looks_like_photo(sketch):
             if prompt:
-                step(0.15, "Photo + prompt: restyling with the prompt...")
+                step(0.15, "Photo + prompt: restyling with your prompt...")
                 label = "photo + prompt"
                 t0 = time.time()
                 generated = generate_image(photo_to_edges(sketch), prompt, seed=seed,
-                                   conditioning_scale=0.9, auto_label=False)
+                                           conditioning_scale=0.9, auto_label=False)
                 t["prepare_sketch"] = 0.0
                 t["generate_image"] = time.time() - t0
             else:
+                step(0.15, "Photo detected, skipping generation...")
                 label = "photo (generation skipped)"
                 generated = sketch if sketch.mode == "RGBA" else sketch.convert("RGB")
                 t["prepare_sketch"] = 0.0
@@ -111,8 +114,7 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
 
         step(0.65, "Removing the background...")
         t0 = time.time()
-        generated = ImageEnhance.Color(generated.convert("RGB")).enhance(1.4)  # boost saturation for TripoSR
-        rgba = prepare_for_3d(generated)
+        rgba = prepare_for_3d(boost_colour(generated))
         t["prepare_for_3d"] = time.time() - t0
 
         step(0.75, "Building the 3D model...")
@@ -130,7 +132,7 @@ def run_pipeline(sketch, prompt=None, seed=42, mc_resolution=None, progress=None
     t["total"] = sum(t.values())
     return {
         "glb_path": glb,
-        "generated_image": generated.convert("RGB") if generated.mode != "RGB" else generated,
+        "generated_image": _on_white(generated),
         "label": label,
         "timings": {k: round(v, 1) for k, v in t.items()},
         "report": mesh_report(mesh),
